@@ -53,9 +53,14 @@ func ListProjects(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&projects)
 }
 func GetAllProjectGrades(w http.ResponseWriter, r *http.Request) {
-	// TODO
-
-	// TODO
+	projects, err := db.GetAllProjectGrades(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to fetch project grades", http.StatusInternalServerError)
+		return
+	}
+	if projects == nil {
+		projects = []lmodel.ProjectGrade{}
+	}
 
 	json.NewEncoder(w).Encode(&projects)
 }

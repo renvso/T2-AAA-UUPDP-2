@@ -1,28 +1,69 @@
 package handler
 
 import (
+	"aaa_bekend/internal/db"
 	"aaa_bekend/internal/lmodel"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func GetMyData(w http.ResponseWriter, r *http.Request) {
 	user, _ := lmodel.UserFromContext(r.Context())
 
-	//TODO
+	profile, err := db.GetUserByID(r.Context(), user.ID)
 
-	//TODO
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to fetch user data", http.StatusInternalServerError)
+		return
+	}
 
 	json.NewEncoder(w).Encode(profile)
 }
 
+type UpdateMyDataReq struct {
+	Username string `json:"username"`
+}
+
+var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]{3,50}$`)
+
 func UpdateMyData(w http.ResponseWriter, r *http.Request) {
 	user, _ := lmodel.UserFromContext(r.Context())
 
-	// TODO
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
 
-	//TODO
+	var req UpdateMyDataReq
+	if err := dec.Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	req.Username = strings.TrimSpace(req.Username)
+	if !usernamePattern.MatchString(req.Username) {
+		http.Error(w, "Username must be 3-50 characters (letters, numbers, '.', '_', '-')", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.UpdateMyData(r.Context(), user.ID, req.Username); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			http.Error(w, "Username already taken", http.StatusConflict)
+			return
+		}
+		http.Error(w, "Failed to update data", http.StatusInternalServerError)
+		return
+	}
 
 	json.NewEncoder(w).Encode(map[string]string{
 		"message":  "Data updated successfully",

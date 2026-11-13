@@ -74,10 +74,17 @@ func UpdateMyData(w http.ResponseWriter, r *http.Request) {
 func GetMyAuditLog(w http.ResponseWriter, r *http.Request) {
 	user, _ := lmodel.UserFromContext(r.Context())
 
-	// TODO
+	logs, err := db.GetUserAuditLogs(r.Context(), user.ID)
+    if err != nil {
+        http.Error(w, "Failed to fetch audit logs", http.StatusInternalServerError)
+        return
+    }
 
-	// TODO
+    if logs == nil {
+        logs = []lmodel.AuditLog{}
+    }
 
+    w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"user":  user.Username,
 		"total": len(logs),
@@ -88,9 +95,35 @@ func GetMyAuditLog(w http.ResponseWriter, r *http.Request) {
 func ExportMyData(w http.ResponseWriter, r *http.Request) {
 	user, _ := lmodel.UserFromContext(r.Context())
 
-	// TODO
+	profile, err := db.GetUserByID(r.Context(), user.ID)
+    if err != nil {
+        if errors.Is(err, pgx.ErrNoRows) {
+            http.Error(w, "User not found", http.StatusNotFound)
+            return
+        }
+        http.Error(w, "Failed to fetch user data", http.StatusInternalServerError)
+        return
+    }
 
-	// TODO
+    projects, err := db.GetUserProjects(r.Context(), user.ID)
+    if err != nil {
+        http.Error(w, "Failed to fetch user projects", http.StatusInternalServerError)
+        return
+    }
+
+    logs, err := db.GetUserAuditLogs(r.Context(), user.ID)
+    if err != nil {
+        http.Error(w, "Failed to fetch audit logs", http.StatusInternalServerError)
+        return
+    }
+
+    if projects == nil {
+        projects = []lmodel.Project{}
+    }
+
+    if logs == nil {
+        logs = []lmodel.AuditLog{}
+    }
 
 	export := map[string]interface{}{
 		"exported_at": time.Now(),
@@ -105,8 +138,13 @@ func ExportMyData(w http.ResponseWriter, r *http.Request) {
 func DeleteMyAccount(w http.ResponseWriter, r *http.Request) {
 	user, _ := lmodel.UserFromContext(r.Context())
 
-	// TODO
+	err := db.DeleteUserAccount(r.Context(), user.ID)
+    if err != nil {
+        http.Error(w, "Failed to delete account", http.StatusInternalServerError)
+        return
+    }
 
+    w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Your account and all data have been permanently deleted",
 	})
